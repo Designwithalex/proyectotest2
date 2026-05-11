@@ -271,7 +271,7 @@ function waUrl(number, message) {
 
 // Parsing robusto: extrae JSON del wrapper que devuelve gviz
 async function fetchTab(tabName) {
-  const url = `https://docs.google.com/spreadsheets/d/${CMS.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${CMS.sheetId}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(tabName)}`;
   console.log('[CMS] Fetching:', url);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} al cargar pestaña "${tabName}"`);

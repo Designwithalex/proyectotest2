@@ -108,9 +108,7 @@
 <section class="pt-[120px] pb-section-gap max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter items-center">
     <div class="order-2 md:order-1">
-      <div id="hero-image-wrap" class="skeleton w-full h-[500px] rounded-xl boutique-shadow">
-        <img id="hero-image" class="w-full h-full object-cover rounded-xl hidden" src="" alt="Hero sillasylamparas"/>
-      </div>
+      <img id="hero-image" class="w-full h-[500px] object-cover rounded-xl boutique-shadow skeleton" src="" alt="Hero sillasylamparas"/>
     </div>
     <div class="order-1 md:order-2 space-y-6 md:pl-12">
       <h1 id="hero-titulo" class="font-display-lg text-display-lg text-on-background">Encontrá el equilibrio en tu living.</h1>
@@ -158,9 +156,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
       <div class="relative">
         <div class="absolute -top-10 -left-10 w-32 h-32 border-l border-t border-primary/30 hidden md:block"></div>
-        <div id="featured-imagen-wrap" class="skeleton w-full h-[450px] rounded-lg boutique-shadow">
-          <img id="featured-imagen" class="w-full h-full object-cover rounded-lg hidden" src="" alt="Producto destacado"/>
-        </div>
+        <img id="featured-imagen" class="w-full h-[450px] object-cover rounded-lg boutique-shadow skeleton" src="" alt="Producto destacado"/>
       </div>
       <div class="space-y-8">
         <h2 id="featured-nombre" class="font-display-lg text-display-lg">Sillón de Lectura 'Nido'</h2>
@@ -287,19 +283,14 @@ async function fetchTab(tabName) {
   return JSON.parse(text.substring(start, end + 1));
 }
 
-// Muestra imagen en hero/featured reemplazando el skeleton wrapper
-function revealImage(imgId, wrapId, url) {
+// Asigna src a una imagen con skeleton; onload/onerror se setean ANTES de src para evitar race condition con caché
+function revealImage(imgId, url) {
   const img = document.getElementById(imgId);
-  const wrap = document.getElementById(wrapId);
   if (!img || !url) return;
   const src = normalizeDriveUrl(url);
+  img.onload = () => img.classList.remove('skeleton');
+  img.onerror = () => { console.warn('[CMS] No se pudo cargar imagen:', src); img.classList.remove('skeleton'); };
   img.src = src;
-  img.classList.remove('hidden');
-  img.onload = () => { if (wrap) wrap.classList.remove('skeleton'); };
-  img.onerror = () => {
-    console.warn('[CMS] No se pudo cargar imagen:', src);
-    if (wrap) wrap.classList.remove('skeleton');
-  };
 }
 
 function isActive(val) {
@@ -313,8 +304,8 @@ function applyConfig(config) {
 
   if (config.whatsapp_numero) CMS.waNumber = String(config.whatsapp_numero).replace(/\D/g, '');
 
-  revealImage('hero-image',     'hero-image-wrap',     config.hero_imagen);
-  revealImage('featured-imagen','featured-imagen-wrap', config.featured_imagen);
+  revealImage('hero-image',      config.hero_imagen);
+  revealImage('featured-imagen', config.featured_imagen);
 
   set('hero-titulo',      config.hero_titulo);
   set('hero-subtitulo',   config.hero_subtitulo);
@@ -410,8 +401,7 @@ async function init() {
 
   } catch (err) {
     console.error('[CMS] Error al cargar:', err);
-    // Quitar skeletons del hero/featured para no dejar el layout roto
-    ['hero-image-wrap','featured-imagen-wrap'].forEach(id => {
+    ['hero-image','featured-imagen'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.remove('skeleton');
     });

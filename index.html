@@ -108,7 +108,9 @@
 <section class="pt-[120px] pb-section-gap max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter items-center">
     <div class="order-2 md:order-1">
-      <img id="hero-image" class="w-full h-[500px] object-cover rounded-xl boutique-shadow" src="" alt="Hero sillasylamparas"/>
+      <div id="hero-image-wrap" class="skeleton w-full h-[500px] rounded-xl boutique-shadow">
+        <img id="hero-image" class="w-full h-full object-cover rounded-xl hidden" src="" alt="Hero sillasylamparas"/>
+      </div>
     </div>
     <div class="order-1 md:order-2 space-y-6 md:pl-12">
       <h1 id="hero-titulo" class="font-display-lg text-display-lg text-on-background">Encontrá el equilibrio en tu living.</h1>
@@ -156,7 +158,9 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
       <div class="relative">
         <div class="absolute -top-10 -left-10 w-32 h-32 border-l border-t border-primary/30 hidden md:block"></div>
-        <img id="featured-imagen" class="w-full h-[450px] object-cover rounded-lg boutique-shadow" src="" alt="Producto destacado"/>
+        <div id="featured-imagen-wrap" class="skeleton w-full h-[450px] rounded-lg boutique-shadow">
+          <img id="featured-imagen" class="w-full h-full object-cover rounded-lg hidden" src="" alt="Producto destacado"/>
+        </div>
       </div>
       <div class="space-y-8">
         <h2 id="featured-nombre" class="font-display-lg text-display-lg">Sillón de Lectura 'Nido'</h2>
@@ -252,13 +256,16 @@ const CMS = {
   sheetId: '1sHjjT-nMbwAa1tHKczegBedw3VN3M9bEHFtveCS5rxo',
   productsTab: 'Sheet1',
   configTab: 'config',
-  waNumber: '5491100000000' // fallback, se sobreescribe con config tab
+  waNumber: '5491100000000'
 };
 
+// Convierte cualquier URL de Google Drive a formato thumbnail embebible
 function normalizeDriveUrl(url) {
   if (!url) return '';
-  const match = url.match(/\/file\/d\/([^/]+)/);
-  if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  const match = url.match(/\/file\/d\/([^/?]+)/);
+  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+  const idMatch = url.match(/[?&]id=([^&]+)/);
+  if (idMatch) return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
   return url;
 }
 
@@ -266,40 +273,65 @@ function waUrl(number, message) {
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
+// Parsing robusto: extrae JSON del wrapper que devuelve gviz
 async function fetchTab(tabName) {
   const url = `https://docs.google.com/spreadsheets/d/${CMS.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+  console.log('[CMS] Fetching:', url);
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} al cargar pestaña "${tabName}"`);
   const text = await res.text();
-  return JSON.parse(text.substring(47, text.length - 2));
+  // El prefijo del wrapper gviz puede variar; buscar primer '{' para mayor robustez
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error(`Respuesta inesperada de gviz para "${tabName}"`);
+  return JSON.parse(text.substring(start, end + 1));
+}
+
+// Muestra imagen en hero/featured reemplazando el skeleton wrapper
+function revealImage(imgId, wrapId, url) {
+  const img = document.getElementById(imgId);
+  const wrap = document.getElementById(wrapId);
+  if (!img || !url) return;
+  const src = normalizeDriveUrl(url);
+  img.src = src;
+  img.classList.remove('hidden');
+  img.onload = () => { if (wrap) wrap.classList.remove('skeleton'); };
+  img.onerror = () => {
+    console.warn('[CMS] No se pudo cargar imagen:', src);
+    if (wrap) wrap.classList.remove('skeleton');
+  };
+}
+
+function isActive(val) {
+  return val === true || val === 'TRUE' || val === 'true' || val === 1;
 }
 
 function applyConfig(config) {
-  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.innerHTML = val; };
-  const setSrc = (id, val) => { const el = document.getElementById(id); if (el && val) el.src = normalizeDriveUrl(val); };
+  console.log('[CMS] Config recibida:', config);
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.innerHTML = val; };
   const setHref = (id, val) => { const el = document.getElementById(id); if (el && val) el.href = val; };
 
-  if (config.whatsapp_numero) CMS.waNumber = config.whatsapp_numero;
+  if (config.whatsapp_numero) CMS.waNumber = String(config.whatsapp_numero).replace(/\D/g, '');
 
-  setSrc('hero-image', config.hero_imagen);
-  set('hero-titulo', config.hero_titulo);
-  set('hero-subtitulo', config.hero_subtitulo);
+  revealImage('hero-image',     'hero-image-wrap',     config.hero_imagen);
+  revealImage('featured-imagen','featured-imagen-wrap', config.featured_imagen);
+
+  set('hero-titulo',      config.hero_titulo);
+  set('hero-subtitulo',   config.hero_subtitulo);
   set('productos-titulo', config.productos_titulo);
-  setSrc('featured-imagen', config.featured_imagen);
-  set('featured-nombre', config.featured_nombre);
+  set('featured-nombre',  config.featured_nombre);
   set('featured-bullet1', config.featured_bullet1);
   set('featured-bullet2', config.featured_bullet2);
   set('featured-bullet3', config.featured_bullet3);
-  set('footer-tagline', config.footer_tagline);
+  set('footer-tagline',   config.footer_tagline);
   setHref('link-instagram', config.instagram_url);
 
-  // WA buttons generales
   const waGeneral = waUrl(CMS.waNumber, 'Hola! Quisiera recibir más información sobre sus productos.');
   ['btn-nav-wa','btn-hero-wa','btn-featured-wa','btn-cta-wa','link-wa-footer'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) {
-      if (el.tagName === 'A') el.href = waGeneral;
-      else el.onclick = () => window.open(waGeneral, '_blank');
-    }
+    if (!el) return;
+    if (el.tagName === 'A') el.href = waGeneral;
+    else el.onclick = () => window.open(waGeneral, '_blank');
   });
 
   if (config.hero_cta_texto) {
@@ -311,7 +343,7 @@ function applyConfig(config) {
 function renderProducts(products) {
   const grid = document.getElementById('product-grid');
   if (!products.length) {
-    grid.innerHTML = '<p class="col-span-4 text-center text-secondary">No hay productos disponibles.</p>';
+    grid.innerHTML = '<p class="col-span-4 text-center text-secondary py-8">No hay productos disponibles.</p>';
     return;
   }
   grid.innerHTML = products.map(p => {
@@ -353,7 +385,7 @@ async function init() {
       fetchTab(CMS.productsTab)
     ]);
 
-    // Parse config tab (key | value)
+    // Config: clave → valor
     const config = {};
     configRaw.table.rows.forEach(row => {
       const key = row.c[0]?.v;
@@ -362,7 +394,7 @@ async function init() {
     });
     applyConfig(config);
 
-    // Parse products tab
+    // Productos: filtrar activos (acepta boolean true, string "TRUE", número 1)
     const products = productsRaw.table.rows.map(row => ({
       id:               row.c[0]?.v,
       name:             row.c[1]?.v || '',
@@ -371,12 +403,18 @@ async function init() {
       image_url:        row.c[4]?.v || '',
       whatsapp_message: row.c[5]?.v || '',
       active:           row.c[6]?.v
-    })).filter(p => p.active === true);
+    })).filter(p => isActive(p.active));
 
+    console.log('[CMS] Productos activos:', products.length);
     renderProducts(products);
 
   } catch (err) {
-    console.error('CMS load error:', err);
+    console.error('[CMS] Error al cargar:', err);
+    // Quitar skeletons del hero/featured para no dejar el layout roto
+    ['hero-image-wrap','featured-imagen-wrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('skeleton');
+    });
     document.getElementById('product-grid').innerHTML = `
       <p class="col-span-4 text-center text-secondary py-8">
         No se pudo cargar el catálogo. Por favor recargá la página.
